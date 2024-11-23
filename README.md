@@ -29,3 +29,34 @@ a dummy Deployment which is scaled depending on the size of a Redis queue.
    ```
    kubectl apply -k ./002-dummy-deployment
    ```
+
+ ## Test Autoscaler
+
+ 1. Install redis-cli
+
+   ```
+   brew install redis-cli
+   ```
+
+ 2. Connect Redis # get the redis master service ip and port
+
+   ```
+   redis-cli -a $(kubectl get secrets -n application redis -o jsonpath="{.data.redis-password}" | base64 --decode) -h $(kubectl get service redis-master -n application -o jsonpath='{.spec.clusterIP}') -p $(kubectl get service redis-master -n application -o jsonpath='{.spec.ports[0].port}')
+   ```
+    
+ 2. Watch # in split tab run:
+
+   ```
+   Kubectl get pods -w
+   ```
+
+ 2. Send test message to queue to scale # after 3 message you will se one more replica
+
+   ```
+   LPUSH mylist uno
+   LPUSH mylist uno
+   LPUSH mylist uno
+   LPUSH mylist uno
+   ```   
+
+
