@@ -30,7 +30,7 @@ a dummy Deployment which is scaled depending on the size of a Redis queue.
    kubectl apply -k ./002-dummy-deployment
    ```
 
- ## Test Autoscaler
+ ## Test Redis Autoscaler
 
  1. Install redis-cli
 
@@ -44,13 +44,13 @@ a dummy Deployment which is scaled depending on the size of a Redis queue.
    redis-cli -a $(kubectl get secrets -n application redis -o jsonpath="{.data.redis-password}" | base64 --decode) -h $(kubectl get service redis-master -n application -o jsonpath='{.spec.clusterIP}') -p $(kubectl get service redis-master -n application -o jsonpath='{.spec.ports[0].port}')
    ```
     
- 2. Watch # in split tab run:
+ 3. Watch # in split tab run:
 
    ```
    Kubectl get pods -w
    ```
 
- 2. Send test message to queue to scale # after 3 message you will se one more replica
+ 4. Send test message to queue to scale # after 3 message you will se one more replica
 
    ```
    LPUSH mylist uno
@@ -59,4 +59,36 @@ a dummy Deployment which is scaled depending on the size of a Redis queue.
    LPUSH mylist uno
    ```   
 
+ ## Test mysql Autoscaler
 
+ 1. Build 
+
+   ```
+   cd 
+   docker build -t local/app .
+   docker build -t local/dummy -f dummy.Dockerfile .
+   ```
+
+ 2. Install mysql instance and dummy app to scale 
+
+   ```
+   kubectl apply -f deployment/
+   ```
+
+ 3. Install mysql scaler
+
+   ```
+   kubectl apply -f keda/mysql-hpa.yaml
+   ```      
+
+ 4. scale up
+
+   ```
+   kubectl exec $(kubectl get pods | grep "server" | cut -f 1 -d " ") -- keda-talk mysql insert
+   ```
+
+ 5. scale down
+
+   ```
+   kubectl exec $(kubectl get pods | grep "server" | cut -f 1 -d " ") -- keda-talk mysql delete
+   ``` 
