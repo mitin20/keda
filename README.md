@@ -35,7 +35,7 @@ a dummy Deployment which is scaled depending on the size of a Redis queue.
  1. Install redis-cli
 
    ```
-   brew install redis-cli
+   brew install redis
    ```
 
  2. Connect Redis # get the redis master service ip and port
