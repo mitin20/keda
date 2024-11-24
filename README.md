@@ -172,5 +172,70 @@ a dummy Deployment which is scaled depending on the size of a Redis queue.
    k6 run k6-100.js
 
    kubectl --namespace production \
-      get pods,hpa,scaledobjectss
+      get pods,hpa,scaledobjects
    ```
+
+ ## Test container cpu Autoscaler
+
+ 1. Install pre-requisites traefik - prometheous - k6 - app
+
+```
+   ## Deploy app and scalesopject
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    app: nginx
+spec:
+  containers:
+  - name: nginx
+    image: nginx:latest
+    ports:
+    - containerPort: 80
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "250m"
+      limits:
+        memory: "128Mi"
+        cpu: "500m"    
+EOF
+
+cat <<EOF | kubectl apply -f -
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: cpu-scaledobject
+  namespace: default
+spec:
+  scaleTargetRef:
+    name: my-deployment
+  triggers:
+  - type: cpu
+    metricType: Utilization # Allowed types are 'Utilization' or 'AverageValue'
+    metadata:
+      value: "50"
+      containerName: "nginx"
+EOF
+
+kubectl -n default port-forward nginx-pod 8085:80 >/dev/null 2>&1 &
+
+cat <<EOF | k6 run -
+import http from 'k6/http';
+import { sleep } from 'k6';
+
+export const options = {
+  vus: 100,
+  duration: '60s',
+};
+
+export default function () {
+  http.get('http://localhost:8085');
+  sleep(1);
+}
+EOF
+```   
