@@ -64,7 +64,7 @@ a dummy Deployment which is scaled depending on the size of a Redis queue.
  1. Build 
 
    ```
-   cd 
+   cd 004-mysql
    docker build -t local/app .
    docker build -t local/dummy -f dummy.Dockerfile .
    ```
@@ -92,3 +92,85 @@ a dummy Deployment which is scaled depending on the size of a Redis queue.
    ```
    kubectl exec $(kubectl get pods | grep "server" | cut -f 1 -d " ") -- keda-talk mysql delete
    ``` 
+
+ ## Test request Autoscaler
+
+ 1. Install pre-requisites traefik - prometheous - k6 - app
+
+   ```
+   cd 005-http_request-prometheus
+   ## traefik
+   helm repo add traefik \
+      https://helm.traefik.io/traefik
+
+   helm repo update
+
+   helm upgrade --install traefik traefik/traefik \
+      --namespace traefik --create-namespace --wait
+
+   export INGRESS_HOST=$(kubectl --namespace traefik \
+      get svc traefik \
+      --output jsonpath="{.status.loadBalancer.ingress[0].ip}")
+
+   echo $INGRESS_HOST      
+   
+   ## k6
+   git clone https://github.com/vfarcic/keda-demo
+
+   yq --inplace \
+      ".spec.rules[0].host = \"dot.$INGRESS_HOST.nip.io\"" \
+      k8s/ing.yaml
+
+   cat k6.js \
+      | sed -e "s@http\.get.*@http\.get('http://dot.$INGRESS_HOST.nip.io');@g" \
+      | tee k6.js
+
+   cat k6-100.js \
+      | sed -e "s@http\.get.*@http\.get('http://dot.$INGRESS_HOST.nip.io');@g" \
+      | tee k6-100.js
+
+   ## app - prometheus
+
+   kubectl create namespace production
+
+   kubectl --namespace production \
+      apply --filename k8s/
+
+   helm repo add prometheus-community \
+      https://prometheus-community.github.io/helm-charts
+
+   helm repo update
+
+   helm upgrade --install \
+      prometheus prometheus-community/prometheus \
+      --namespace monitoring \
+      --create-namespace \
+      --wait      
+
+   ```
+
+ 2. Install keda-prometheous scaledobjects
+
+   ```
+   kubectl --namespace production \
+    get pods
+
+   cat keda-prom.yaml
+
+   kubectl --namespace production apply \
+      --filename keda-prom.yaml
+   ```
+
+ 3. Scale up
+
+   ```
+   k6 run k6.js
+
+   kubectl --namespace production \
+      get pods,hpa,scaledobjects
+
+   k6 run k6-100.js
+
+   kubectl --namespace production \
+      get pods,hpa,scaledobjectss
+   ```
